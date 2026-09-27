@@ -1,6 +1,6 @@
 # Local Mac App Integrations MCP
 
-A small MCP server for Apple Calendar and Reminders, plus read-only access to one iCloud Mail account configured in Apple Mail. It uses Swift, EventKit, Apple Mail automation, and the MCP Swift SDK.
+A small MCP server for Apple Calendar and Reminders, read-only access to one iCloud Mail account configured in Apple Mail, and editable walking tours using MapKit. It uses Swift, EventKit, MapKit, Apple Mail automation, and the MCP Swift SDK.
 
 ## Start it
 
@@ -39,6 +39,19 @@ You can name the local connection `local-mac-app-integrations`. Each Mac needs i
 Calendar invitations: `invite_event_attendee` takes an event ID and a guest email address. It uses Apple Calendar automation because EventKit cannot add guests. The first use may ask for Automation permission for Calendar. The tool supports timed, nonrecurring events on writable calendars. It checks the calendar, title, and exact start time and refuses ambiguous matches. Existing guests are reported without adding a duplicate. Adding a guest may send an invitation immediately; the tool can confirm the attendee appears in Calendar but cannot verify delivery to the guest.
 
 Mail: `search_icloud_mail`, `read_icloud_mail`, `list_icloud_mail_attachments`, and `download_icloud_mail_attachment`. List attachments for a message ID, then download one by its attachment ID. Downloads are saved to a unique folder under `~/Library/Application Support/LocalMacAppIntegrations/Attachments/`; the tool returns the absolute path. These copies persist until you remove them. Downloading does not send or delete mail. Apple Mail may leave `mime_type` empty even when it provides the file name and size.
+
+### Walking tours
+
+The tour tools let you plan a neighborhood walk in conversation, revise it during the walk, and open a fresh handoff on your iPhone:
+
+1. Use `search_map_places` to resolve sights and addresses, then `create_walking_tour` with their coordinates in walking order. The tour is saved privately on this Mac.
+2. Use `preview_walking_tour` to check walking times and distances between stops. `get_walking_tour` or `list_walking_tours` returns the latest Apple Maps link. Open the link on iPhone and review it before starting navigation.
+3. For a detour, tell the assistant your current location. `suggest_walking_tour_detours` finds places reachable within a specified walking time, such as coffee within 30 minutes, and ranks them by how much time they add before your next stop. After you choose one, `insert_walking_tour_stop` adds it before a remaining stop. `remove_walking_tour_stop` removes a future stop, and `set_walking_tour_progress` marks the next stop and current position. `preview_walking_tour` and the Apple Maps link then reflect the revised plan. For more sights like one you enjoyed, search by its descriptive category and add the chosen results.
+4. `export_walking_tour_gpx` uses MapKit's walking route geometry to save a GPX track under `~/Library/Application Support/LocalMacAppIntegrations/Tours/`. You can transfer and import that file into a compatible iPhone and Apple Watch route app.
+
+The server **does not track your phone or Watch location**. Supply a current address or coordinates for a live detour; the assistant can use `search_map_places` to resolve an address. To call these tools from ChatGPT on your phone while walking, use a remote connection to the Mac and keep the Mac and server running; the phone does not reach this loopback server directly. Tour files remain in Application Support and are never added to this repository. MapKit searches and route calculations use Apple's map service and require connectivity.
+
+Apple Maps' documented URL format supports walking directions and waypoints, but iPhone Maps may not preserve every waypoint as a single custom walking route. Check the link before setting off. The server cannot create a saved custom walking route inside Apple Maps or change navigation already running on Apple Watch. After a revision, open the new link and start the revised route yourself. GPX is an alternative for route apps that support importing tracks; the file is local to the Mac until you transfer it.
 
 Timed event inputs use ISO 8601 with an explicit UTC offset, for example `2026-10-03T09:30:00+02:00`. Event searches need both start and end bounds. EventKit IDs can change when synced accounts replace an event. This version rejects edits and deletions of recurring events. The server returns an error if no destination list or calendar can be chosen unambiguously.
 

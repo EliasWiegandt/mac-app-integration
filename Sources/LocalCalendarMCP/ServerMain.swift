@@ -202,6 +202,13 @@ private func schema(_ properties: [String: Value], required: [String] = []) -> V
 private func stringProp(_ description: String) -> Value { .object(["type": .string("string"), "description": .string(description)]) }
 private func boolProp(_ description: String) -> Value { .object(["type": .string("boolean"), "description": .string(description)]) }
 private func numberProp(_ description: String) -> Value { .object(["type": .string("integer"), "description": .string(description)]) }
+private func coordinateProp(_ description: String) -> Value { .object(["type": .string("number"), "description": .string(description)]) }
+private func tourStopProp() -> Value {
+    .object(["type": .string("object"), "properties": .object([
+        "name": stringProp("Place name"), "latitude": coordinateProp("Latitude"),
+        "longitude": coordinateProp("Longitude"), "note": stringProp("Why this stop is on the tour")
+    ]), "required": .array([.string("name"), .string("latitude"), .string("longitude")])])
+}
 
 @main struct LocalCalendarMCP {
     static func main() async throws {
@@ -210,8 +217,9 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
         guard option("--host", fallback: "127.0.0.1") == "127.0.0.1" else { fatalError("This server only binds to 127.0.0.1") }
         let service = EventKitService()
         let mailService = MailService()
+        let tourService = try TourService()
         let app = HTTPApp(host: "127.0.0.1", port: Int(option("--port", fallback: "8765")) ?? 8765, endpoint: "/mcp") { _, transport in
-            let server = Server(name: "local-mac-app-integrations", version: "1.3.0", instructions: "Local Apple Calendar, Reminders, and iCloud Mail. Mail can search, read, and save attachments. Calendar can add attendees through AppleScript; doing so may send an invitation. Dates use ISO 8601 with offsets.", capabilities: .init(tools: .init()))
+            let server = Server(name: "local-mac-app-integrations", version: "1.4.0", instructions: "Local Apple Calendar, Reminders, iCloud Mail, and walking tours. Tours are saved privately on this Mac. For live detours, ask the user for their current position; there is no phone GPS feed. Updated Apple Maps links must be opened again; this server cannot alter navigation already running on Apple Watch. Mail can search, read, and save attachments. Calendar can add attendees through AppleScript; doing so may send an invitation. Dates use ISO 8601 with offsets.", capabilities: .init(tools: .init()))
             let tools: [Tool] = [
                 Tool(name:"list_reminder_lists",description:"List available Reminders lists and stable IDs.",inputSchema:schema([:])),
                 Tool(name:"search_reminders",description:"Search reminders. Optional completion and due bounds; due bounds use ISO 8601.",inputSchema:schema(["list_id":stringProp("Reminder list ID"),"query":stringProp("Title or notes contains"),"completed":boolProp("Completion filter"),"due_from":stringProp("Inclusive due lower bound"),"due_to":stringProp("Inclusive due upper bound")])),
@@ -227,7 +235,17 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
                 Tool(name:"search_icloud_mail",description:"Read-only search of subjects and senders in the configured iCloud Mail account. Returns message IDs and metadata, not bodies. Searches all mailboxes in that account.",inputSchema:schema(["query":stringProp("Text to find in subject or sender"),"limit":numberProp("Maximum results, 1 to 50; default 20")],required:["query"])),
                 Tool(name:"read_icloud_mail",description:"Read one message from the configured iCloud Mail account by an ID returned from search_icloud_mail. Does not send, move, delete, or intentionally mark messages read.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail")],required:["id"])),
                 Tool(name:"list_icloud_mail_attachments",description:"List attachment IDs, names, MIME types, sizes, and Mail download status for one message in the configured iCloud account.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail")],required:["id"])),
-                Tool(name:"download_icloud_mail_attachment",description:"Save one selected iCloud Mail attachment to a unique folder under the current user's Application Support directory. Returns the absolute local path. Does not execute or upload the file.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail"),"attachment_id":stringProp("Attachment ID from list_icloud_mail_attachments")],required:["id","attachment_id"]))
+                Tool(name:"download_icloud_mail_attachment",description:"Save one selected iCloud Mail attachment to a unique folder under the current user's Application Support directory. Returns the absolute local path. Does not execute or upload the file.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail"),"attachment_id":stringProp("Attachment ID from list_icloud_mail_attachments")],required:["id","attachment_id"])),
+                Tool(name:"search_map_places",description:"Search Apple Maps for places or addresses. Use a city in query or optional nearby coordinates to disambiguate before adding tour stops.",inputSchema:schema(["query":stringProp("Place, category, or address to find"),"near_latitude":coordinateProp("Optional search center latitude"),"near_longitude":coordinateProp("Optional search center longitude"),"limit":numberProp("Maximum results, 1...20")],required:["query"])),
+                Tool(name:"create_walking_tour",description:"Save an ordered walking tour locally. Search and confirm place coordinates first. Returns stable stop IDs and an Apple Maps walking link, which the user should review on iPhone.",inputSchema:schema(["title":stringProp("Tour name"),"stops":.object(["type":.string("array"),"items":tourStopProp(),"minItems":.int(2),"maxItems":.int(30)])],required:["title","stops"])),
+                Tool(name:"list_walking_tours",description:"List locally saved walking tours and their current links.",inputSchema:schema([:])),
+                Tool(name:"get_walking_tour",description:"Get the ordered stops, progress, and latest Apple Maps link for one tour.",inputSchema:schema(["tour_id":stringProp("Tour UUID")],required:["tour_id"])),
+                Tool(name:"preview_walking_tour",description:"Calculate walking time and distance for each remaining leg using Apple MapKit. Review this before opening or exporting the route.",inputSchema:schema(["tour_id":stringProp("Tour UUID")],required:["tour_id"])),
+                Tool(name:"set_walking_tour_progress",description:"Mark the next stop and optionally the user's current position. Ask the user for their location; this tool does not read phone GPS. Refreshes the Apple Maps link.",inputSchema:schema(["tour_id":stringProp("Tour UUID"),"next_stop_id":stringProp("ID of next unvisited stop"),"current_latitude":coordinateProp("Current latitude from the user"),"current_longitude":coordinateProp("Current longitude from the user")],required:["tour_id","next_stop_id"])),
+                Tool(name:"suggest_walking_tour_detours",description:"Find places such as coffee or similar sights reachable within a specified walking time from the user's supplied current position. Rank by extra walking time before the next tour stop. Returns candidate coordinates and a stop ID for insertion. No tour is changed.",inputSchema:schema(["tour_id":stringProp("Tour UUID"),"query":stringProp("Place type or descriptive search, such as coffee shop or art museum"),"current_latitude":coordinateProp("Current latitude from the user"),"current_longitude":coordinateProp("Current longitude from the user"),"max_walk_minutes":numberProp("Maximum walking minutes from current position, 5...90; default 30"),"max_extra_minutes":numberProp("Maximum added minutes before next stop, 0...120; default 20")],required:["tour_id","query","current_latitude","current_longitude"])),
+                Tool(name:"insert_walking_tour_stop",description:"Add an approved detour or sight before a remaining stop. Use coordinates from search_map_places or suggest_walking_tour_detours. Optionally update the user's current position. Refreshes the route link; does not alter active Watch navigation.",inputSchema:schema(["tour_id":stringProp("Tour UUID"),"before_stop_id":stringProp("Existing remaining stop ID to insert before"),"name":stringProp("New stop name"),"latitude":coordinateProp("New stop latitude"),"longitude":coordinateProp("New stop longitude"),"current_latitude":coordinateProp("Optional current latitude from the user"),"current_longitude":coordinateProp("Optional current longitude from the user"),"note":stringProp("Optional reason or description")],required:["tour_id","before_stop_id","name","latitude","longitude"])),
+                Tool(name:"remove_walking_tour_stop",description:"Remove one future stop from a saved tour. Refreshes the route link; does not alter active Watch navigation.",inputSchema:schema(["tour_id":stringProp("Tour UUID"),"stop_id":stringProp("Stop UUID")],required:["tour_id","stop_id"])),
+                Tool(name:"export_walking_tour_gpx",description:"Calculate walking legs with Apple MapKit and save a private GPX track on this Mac for import into compatible iPhone/Watch route apps. Returns the file path and current Apple Maps link.",inputSchema:schema(["tour_id":stringProp("Tour UUID")],required:["tour_id"]))
             ]
             await server.withMethodHandler(ListTools.self) { _ in .init(tools: tools) }
             await server.withMethodHandler(CallTool.self) { params in
@@ -235,6 +253,8 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
                     let result: String
                     if params.name == "search_icloud_mail" || params.name == "read_icloud_mail" || params.name == "list_icloud_mail_attachments" || params.name == "download_icloud_mail_attachment" {
                         result = try await mailService.call(params.name, params.arguments ?? [:])
+                    } else if params.name == "search_map_places" || params.name.contains("walking_tour") {
+                        result = try await tourService.call(params.name, params.arguments ?? [:])
                     } else {
                         result = try await service.call(params.name, params.arguments ?? [:])
                     }
