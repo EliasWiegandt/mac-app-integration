@@ -9,14 +9,16 @@ Requires macOS 14 or newer and a Swift 6 toolchain (Xcode Command Line Tools).
 From this folder, run:
 
 ```sh
+cp .env.example .env
+# Edit .env once to set your iCloud Mail address.
 make run
 ```
 
-Leave the Terminal window open while using the tools. Press Ctrl-C to stop the server. `make run` builds an app bundle and starts the MCP endpoint at `http://127.0.0.1:8765/mcp`. It listens only on this Mac's loopback interface. **No tunnel client is needed for the local ChatGPT desktop app.**
+The `.env` setup is one time only; on the original development Mac it is already configured. The file is Git-ignored and contains the address of the Apple Mail account the Mail tools may access. It does not need a password. Leave the Terminal window open while using the tools. Press Ctrl-C to stop the server. `make run` builds an app bundle and starts the MCP endpoint at `http://127.0.0.1:8765/mcp`. It listens only on this Mac's loopback interface. **No tunnel client is needed for the local ChatGPT desktop app.**
 
 The first Calendar or Reminders tool call may trigger a macOS permission prompt. Grant access to both when prompted. If access was previously denied, enable **Local Calendar MCP** in **System Settings → Privacy & Security → Calendars** or **Reminders**. The generated app bundle carries the permission descriptions; launch the server through `make run` rather than running the bare Swift binary.
 
-Mail search requires the `you@icloud.com` account to be configured and enabled in Apple Mail. The first Mail tool call may ask you to allow macOS Automation access to Mail. Check **System Settings → Privacy & Security → Automation** if you denied it. No iCloud password is stored in this project. Mail tools are scoped to this account; other Mail accounts are not searched. Search covers message subjects and senders across its mailboxes, then `read_icloud_mail` retrieves one selected message's text body. Full-text body search is not included.
+Mail search requires the address in `.env` to be configured and enabled in Apple Mail. The first Mail tool call may ask you to allow macOS Automation access to Mail. Check **System Settings → Privacy & Security → Automation** if you denied it. No iCloud password is stored in this project. Mail tools are scoped to this account; other Mail accounts are not searched. Search covers message subjects and senders across its mailboxes, then `read_icloud_mail` retrieves one selected message's text body. Full-text body search is not included.
 
 ## Connect ChatGPT on this Mac
 

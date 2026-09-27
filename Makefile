@@ -1,6 +1,9 @@
 APP := .build/LocalCalendarMCP.app
 BIN := .build/release/LocalCalendarMCP
 
+-include .env
+export LOCAL_MAC_MCP_ICLOUD_EMAIL
+
 .PHONY: build run clean
 build:
 	swift build -c release

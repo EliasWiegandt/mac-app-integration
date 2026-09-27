@@ -2,9 +2,13 @@ import Foundation
 import MCP
 
 final class MailService: Sendable {
-    private let accountAddress = "you@icloud.com"
+    private let accountAddress = ProcessInfo.processInfo.environment["LOCAL_MAC_MCP_ICLOUD_EMAIL"]?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
     func call(_ name: String, _ arguments: [String: Value]) async throws -> String {
+        guard !accountAddress.isEmpty else {
+            throw Err.message("Set LOCAL_MAC_MCP_ICLOUD_EMAIL in the local .env file, then restart make run.")
+        }
         switch name {
         case "search_icloud_mail":
             guard let query = arguments["query"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
