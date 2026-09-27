@@ -14,7 +14,7 @@ cp .env.example .env
 make run
 ```
 
-The `.env` setup is one time only; on the original development Mac it is already configured. The file is Git-ignored and contains the address of the Apple Mail account the Mail tools may access. It does not need a password. Leave the Terminal window open while using the tools. Press Ctrl-C to stop the server. `make run` builds an app bundle and starts the MCP endpoint at `http://127.0.0.1:8765/mcp`. It listens only on this Mac's loopback interface. **No tunnel client is needed for the local ChatGPT desktop app.**
+The `.env` setup is one time only. The file is Git-ignored and contains the address of the Apple Mail account the Mail tools may access. It does not need a password. Leave the Terminal window open while using the tools. Press Ctrl-C to stop the server. `make run` builds an app bundle and starts the MCP endpoint at `http://127.0.0.1:8765/mcp`. It listens only on this Mac's loopback interface. **No tunnel client is needed for the local ChatGPT desktop app.**
 
 The first Calendar or Reminders tool call may trigger a macOS permission prompt. Grant access to both when prompted. If access was previously denied, enable **Local Calendar MCP** in **System Settings → Privacy & Security → Calendars** or **Reminders**. The generated app bundle carries the permission descriptions; launch the server through `make run` rather than running the bare Swift binary.
 
@@ -24,7 +24,7 @@ Mail search requires the address in `.env` to be configured and enabled in Apple
 
 In the ChatGPT desktop app, add an MCP server in **Settings → MCP servers** using **Streamable HTTP** and the URL `http://127.0.0.1:8765/mcp`. Save and restart ChatGPT if prompted. This is a one-time setup. With `make run` running, try “List my reminder lists” or “List my calendars.”
 
-The local connection is already configured on the original development Mac as `local-mac-app-integrations`. On another Mac, add it there separately.
+You can name the local connection `local-mac-app-integrations`. Each Mac needs its own connection setup.
 
 ## Tools
 
@@ -60,3 +60,7 @@ tccutil reset Reminders com.localcalendar.mcp
 ```
 
 Rebuilding the ad-hoc signed app may trigger a new permission prompt. `make clean` removes Swift build output. [PLAN.md](PLAN.md) records the original implementation plan.
+
+## License
+
+This project is available under the [MIT License](LICENSE). The adapted HTTP transport file retains the MCP Swift SDK's licensing terms and attribution; see [third-party notices](THIRD_PARTY_NOTICES.md).

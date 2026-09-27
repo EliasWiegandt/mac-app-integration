@@ -1,3 +1,5 @@
+// Adapted from MCP Swift SDK's Sources/MCPConformance/Server/HTTPApp.swift.
+// See THIRD_PARTY_NOTICES.md and licenses/MCP-Swift-SDK-LICENSE.
 import Foundation
 import Logging
 import MCP
