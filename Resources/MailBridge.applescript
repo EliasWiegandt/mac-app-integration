@@ -26,8 +26,22 @@ on messageLine(oneMessage)
     return lineText
 end messageLine
 
+on attachmentLine(oneAttachment)
+    tell application "Mail"
+        set attachmentMIME to ""
+        try
+            set attachmentMIME to MIME type of oneAttachment
+        end try
+        set fields to {my encoded(id of oneAttachment), my encoded(name of oneAttachment), my encoded(attachmentMIME), (file size of oneAttachment) as text, (downloaded of oneAttachment) as text}
+    end tell
+    set AppleScript's text item delimiters to tab
+    set lineText to fields as text
+    set AppleScript's text item delimiters to ""
+    return lineText
+end attachmentLine
+
 on run argv
-    if (count of argv) is not 4 then error "Expected command, account address, query or ID, and limit"
+    if (count of argv) is not 4 and (count of argv) is not 6 then error "Invalid Mail bridge arguments"
     set operation to item 1 of argv
     set accountAddress to item 2 of argv
     set selectorValue to item 3 of argv
@@ -66,7 +80,7 @@ on run argv
         set resultText to resultLines as text
         set AppleScript's text item delimiters to ""
         return resultText
-    else if operation is "read" then
+    else if operation is "read" or operation is "attachments" or operation is "save_attachment" then
         set targetID to selectorValue as integer
         repeat with oneBox in allBoxes
             set oneMessage to missing value
@@ -75,9 +89,31 @@ on run argv
                     set oneMessage to first message of oneBox whose id is targetID
                 end try
                 if oneMessage is not missing value then
-                    set details to my messageLine(oneMessage)
-                    set bodyText to my encoded(content of oneMessage)
-                    return details & tab & bodyText
+                    if operation is "read" then
+                        set details to my messageLine(oneMessage)
+                        set bodyText to my encoded(content of oneMessage)
+                        return details & tab & bodyText
+                    else if operation is "attachments" then
+                        set resultLines to {}
+                        repeat with oneAttachment in mail attachments of oneMessage
+                            set end of resultLines to my attachmentLine(contents of oneAttachment)
+                        end repeat
+                        set AppleScript's text item delimiters to linefeed
+                        set resultText to resultLines as text
+                        set AppleScript's text item delimiters to ""
+                        return resultText
+                    else
+                        if (count of argv) is not 6 then error "Missing attachment ID or destination"
+                        set targetAttachmentID to item 5 of argv
+                        set destinationPath to item 6 of argv
+                        repeat with oneAttachment in mail attachments of oneMessage
+                            if (id of oneAttachment) is targetAttachmentID then
+                                save oneAttachment in (POSIX file destinationPath)
+                                return my attachmentLine(contents of oneAttachment)
+                            end if
+                        end repeat
+                        error "Attachment ID not found in the selected message"
+                    end if
                 end if
             end tell
         end repeat

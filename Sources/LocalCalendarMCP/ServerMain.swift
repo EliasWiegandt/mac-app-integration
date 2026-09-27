@@ -193,7 +193,7 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
         let service = EventKitService()
         let mailService = MailService()
         let app = HTTPApp(host: "127.0.0.1", port: Int(option("--port", fallback: "8765")) ?? 8765, endpoint: "/mcp") { _, transport in
-            let server = Server(name: "local-mac-app-integrations", version: "1.1.0", instructions: "Local Apple Calendar, Reminders, and read-only iCloud Mail. Dates use ISO 8601 with offsets. Calendar and Reminders writes affect native data.", capabilities: .init(tools: .init()))
+            let server = Server(name: "local-mac-app-integrations", version: "1.2.0", instructions: "Local Apple Calendar, Reminders, and iCloud Mail. Mail can search, read, and save attachments to a fixed local folder. Dates use ISO 8601 with offsets. Calendar and Reminders writes affect native data.", capabilities: .init(tools: .init()))
             let tools: [Tool] = [
                 Tool(name:"list_reminder_lists",description:"List available Reminders lists and stable IDs.",inputSchema:schema([:])),
                 Tool(name:"search_reminders",description:"Search reminders. Optional completion and due bounds; due bounds use ISO 8601.",inputSchema:schema(["list_id":stringProp("Reminder list ID"),"query":stringProp("Title or notes contains"),"completed":boolProp("Completion filter"),"due_from":stringProp("Inclusive due lower bound"),"due_to":stringProp("Inclusive due upper bound")])),
@@ -206,13 +206,15 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
                 Tool(name:"update_event",description:"Update one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID"),"title":stringProp("New title"),"start":stringProp("New start timestamp"),"end":stringProp("New end timestamp"),"all_day":boolProp("All-day flag"),"location":stringProp("Location"),"notes":stringProp("Notes")],required:["id"])),
                 Tool(name:"delete_event",description:"Delete one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID")],required:["id"])),
                 Tool(name:"search_icloud_mail",description:"Read-only search of subjects and senders in the configured iCloud Mail account. Returns message IDs and metadata, not bodies. Searches all mailboxes in that account.",inputSchema:schema(["query":stringProp("Text to find in subject or sender"),"limit":numberProp("Maximum results, 1 to 50; default 20")],required:["query"])),
-                Tool(name:"read_icloud_mail",description:"Read one message from the configured iCloud Mail account by an ID returned from search_icloud_mail. Does not send, move, delete, or intentionally mark messages read.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail")],required:["id"]))
+                Tool(name:"read_icloud_mail",description:"Read one message from the configured iCloud Mail account by an ID returned from search_icloud_mail. Does not send, move, delete, or intentionally mark messages read.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail")],required:["id"])),
+                Tool(name:"list_icloud_mail_attachments",description:"List attachment IDs, names, MIME types, sizes, and Mail download status for one message in the configured iCloud account.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail")],required:["id"])),
+                Tool(name:"download_icloud_mail_attachment",description:"Save one selected iCloud Mail attachment to a unique folder under the current user's Application Support directory. Returns the absolute local path. Does not execute or upload the file.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail"),"attachment_id":stringProp("Attachment ID from list_icloud_mail_attachments")],required:["id","attachment_id"]))
             ]
             await server.withMethodHandler(ListTools.self) { _ in .init(tools: tools) }
             await server.withMethodHandler(CallTool.self) { params in
                 do {
                     let result: String
-                    if params.name == "search_icloud_mail" || params.name == "read_icloud_mail" {
+                    if params.name == "search_icloud_mail" || params.name == "read_icloud_mail" || params.name == "list_icloud_mail_attachments" || params.name == "download_icloud_mail_attachment" {
                         result = try await mailService.call(params.name, params.arguments ?? [:])
                     } else {
                         result = try await service.call(params.name, params.arguments ?? [:])

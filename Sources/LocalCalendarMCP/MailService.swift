@@ -18,26 +18,79 @@ final class MailService: Sendable {
             guard let id = arguments["id"]?.intValue, id > 0 else { throw Err.message("Provide the numeric message ID returned by search_icloud_mail.") }
             let line = try await runBridge("read", String(id), 1)
             return try encode([try parseLine(line, includesBody: true)])
+        case "list_icloud_mail_attachments":
+            let id = try messageID(arguments)
+            let attachments = try await attachmentsForMessage(id)
+            return try encode(attachments)
+        case "download_icloud_mail_attachment":
+            let id = try messageID(arguments)
+            guard let attachmentID = arguments["attachment_id"]?.stringValue, !attachmentID.isEmpty else {
+                throw Err.message("Provide an attachment_id returned by list_icloud_mail_attachments.")
+            }
+            let attachments = try await attachmentsForMessage(id)
+            guard let selected = attachments.first(where: { $0["id"] as? String == attachmentID }),
+                  let originalName = selected["name"] as? String else {
+                throw Err.message("Attachment ID not found in the selected iCloud message.")
+            }
+            guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+                throw Err.message("Cannot locate the user's Application Support folder.")
+            }
+            let folder = support.appendingPathComponent("LocalMacAppIntegrations/Attachments/\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let destination = folder.appendingPathComponent(safeFileName(originalName), isDirectory: false)
+            _ = try await runBridge("save_attachment", String(id), 1, extra: [attachmentID, destination.path])
+            guard FileManager.default.fileExists(atPath: destination.path) else {
+                throw Err.message("Apple Mail did not create the attachment file at the expected path.")
+            }
+            let attributes = try FileManager.default.attributesOfItem(atPath: destination.path)
+            return try encode([[
+                "message_id": id,
+                "attachment_id": attachmentID,
+                "name": originalName,
+                "path": destination.path,
+                "size_bytes": attributes[.size] as? Int ?? 0,
+            ]])
         default:
             throw Err.message("Unknown Mail tool: \(name)")
         }
     }
 
-    private func runBridge(_ operation: String, _ value: String, _ limit: Int) async throws -> String {
+    private func messageID(_ arguments: [String: Value]) throws -> Int {
+        guard let id = arguments["id"]?.intValue, id > 0 else {
+            throw Err.message("Provide the numeric message ID returned by search_icloud_mail.")
+        }
+        return id
+    }
+
+    private func attachmentsForMessage(_ id: Int) async throws -> [[String: Any]] {
+        let lines = try await runBridge("attachments", String(id), 1)
+        if lines.isEmpty { return [] }
+        return try lines.split(separator: "\n").map { try parseAttachmentLine(String($0)) }
+    }
+
+    private func safeFileName(_ name: String) -> String {
+        let component = (name as NSString).lastPathComponent
+        let clean = String(component.map { character in
+            character == "/" || character == ":" || character == "\\" || character.isNewline ? "_" : character
+        }.prefix(180)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty || clean == "." || clean == ".." ? "attachment" : clean
+    }
+
+    private func runBridge(_ operation: String, _ value: String, _ limit: Int, extra: [String] = []) async throws -> String {
         let accountAddress = self.accountAddress
         return try await Task.detached(priority: .userInitiated) {
-            try Self.runBridgeSync(operation, accountAddress, value, limit)
+            try Self.runBridgeSync(operation, accountAddress, value, limit, extra)
         }.value
     }
 
-    private static func runBridgeSync(_ operation: String, _ accountAddress: String, _ value: String, _ limit: Int) throws -> String {
+    private static func runBridgeSync(_ operation: String, _ accountAddress: String, _ value: String, _ limit: Int, _ extra: [String]) throws -> String {
         guard let resourceURL = Bundle.main.resourceURL?.appendingPathComponent("MailBridge.applescript"),
               FileManager.default.fileExists(atPath: resourceURL.path) else {
             throw Err.message("MailBridge.applescript is missing from the app bundle. Rebuild with make run.")
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = [resourceURL.path, operation, accountAddress, value, String(limit)]
+        process.arguments = [resourceURL.path, operation, accountAddress, value, String(limit)] + extra
         let output = Pipe()
         let errors = Pipe()
         process.standardOutput = output
@@ -76,6 +129,20 @@ final class MailService: Sendable {
             throw Err.message("Apple Mail returned invalid message text.")
         }
         return text
+    }
+
+    private func parseAttachmentLine(_ line: String) throws -> [String: Any] {
+        let fields = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        guard fields.count == 5, let size = Int(fields[3]) else {
+            throw Err.message("Apple Mail returned an unexpected attachment format.")
+        }
+        return [
+            "id": try decode(fields[0]),
+            "name": try decode(fields[1]),
+            "mime_type": try decode(fields[2]),
+            "size_bytes": size,
+            "downloaded_in_mail": fields[4] == "true",
+        ]
     }
 
     private func encode(_ items: [[String: Any]]) throws -> String {

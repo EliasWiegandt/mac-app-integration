@@ -16,7 +16,7 @@ Leave the Terminal window open while using the tools. Press Ctrl-C to stop the s
 
 The first Calendar or Reminders tool call may trigger a macOS permission prompt. Grant access to both when prompted. If access was previously denied, enable **Local Calendar MCP** in **System Settings → Privacy & Security → Calendars** or **Reminders**. The generated app bundle carries the permission descriptions; launch the server through `make run` rather than running the bare Swift binary.
 
-Mail search requires the `you@icloud.com` account to be configured and enabled in Apple Mail. The first Mail tool call may ask you to allow macOS Automation access to Mail. Check **System Settings → Privacy & Security → Automation** if you denied it. No iCloud password is stored in this project. Mail tools are read-only and scoped to this account; other Mail accounts are not searched. Search covers message subjects and senders across its mailboxes, then `read_icloud_mail` retrieves one selected message's text body. Attachments and full-text body search are not included.
+Mail search requires the `you@icloud.com` account to be configured and enabled in Apple Mail. The first Mail tool call may ask you to allow macOS Automation access to Mail. Check **System Settings → Privacy & Security → Automation** if you denied it. No iCloud password is stored in this project. Mail tools are scoped to this account; other Mail accounts are not searched. Search covers message subjects and senders across its mailboxes, then `read_icloud_mail` retrieves one selected message's text body. Full-text body search is not included.
 
 ## Connect ChatGPT on this Mac
 
@@ -34,7 +34,7 @@ The local connection is already configured on the original development Mac as `l
 | `update_reminder` | `update_event` |
 | `delete_reminder` | `delete_event` |
 
-Mail: `search_icloud_mail` and `read_icloud_mail`.
+Mail: `search_icloud_mail`, `read_icloud_mail`, `list_icloud_mail_attachments`, and `download_icloud_mail_attachment`. List attachments for a message ID, then download one by its attachment ID. Downloads are saved to a unique folder under `~/Library/Application Support/LocalMacAppIntegrations/Attachments/`; the tool returns the absolute path. These copies persist until you remove them. Downloading does not send or delete mail. Apple Mail may leave `mime_type` empty even when it provides the file name and size.
 
 Timed event inputs use ISO 8601 with an explicit UTC offset, for example `2026-10-03T09:30:00+02:00`. Event searches need both start and end bounds. EventKit IDs can change when synced accounts replace an event. This version rejects edits and deletions of recurring events. The server returns an error if no destination list or calendar can be chosen unambiguously.
 
