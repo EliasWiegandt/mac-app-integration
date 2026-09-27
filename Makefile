@@ -5,8 +5,10 @@ BIN := .build/release/LocalCalendarMCP
 build:
 	swift build -c release
 	mkdir -p $(APP)/Contents/MacOS
+	mkdir -p $(APP)/Contents/Resources
 	cp $(BIN) $(APP)/Contents/MacOS/LocalCalendarMCP
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
+	cp Resources/MailBridge.applescript $(APP)/Contents/Resources/MailBridge.applescript
 	codesign --force --deep --sign - $(APP)
 
 run: build

@@ -191,8 +191,9 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
         func option(_ name: String, fallback: String) -> String { guard let i = args.firstIndex(of: name), args.indices.contains(i + 1) else { return fallback }; return args[i + 1] }
         guard option("--host", fallback: "127.0.0.1") == "127.0.0.1" else { fatalError("This server only binds to 127.0.0.1") }
         let service = EventKitService()
+        let mailService = MailService()
         let app = HTTPApp(host: "127.0.0.1", port: Int(option("--port", fallback: "8765")) ?? 8765, endpoint: "/mcp") { _, transport in
-            let server = Server(name: "local-calendar-reminders", version: "1.0.0", instructions: "Local Apple Calendar and Reminders. Dates use ISO 8601 with offsets. Writes affect native data.", capabilities: .init(tools: .init()))
+            let server = Server(name: "local-mac-app-integrations", version: "1.1.0", instructions: "Local Apple Calendar, Reminders, and read-only iCloud Mail. Dates use ISO 8601 with offsets. Calendar and Reminders writes affect native data.", capabilities: .init(tools: .init()))
             let tools: [Tool] = [
                 Tool(name:"list_reminder_lists",description:"List available Reminders lists and stable IDs.",inputSchema:schema([:])),
                 Tool(name:"search_reminders",description:"Search reminders. Optional completion and due bounds; due bounds use ISO 8601.",inputSchema:schema(["list_id":stringProp("Reminder list ID"),"query":stringProp("Title or notes contains"),"completed":boolProp("Completion filter"),"due_from":stringProp("Inclusive due lower bound"),"due_to":stringProp("Inclusive due upper bound")])),
@@ -203,12 +204,19 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
                 Tool(name:"search_events",description:"Search events in a required bounded time range; use ISO 8601 timestamps with explicit offsets.",inputSchema:schema(["start":stringProp("Inclusive range start"),"end":stringProp("Exclusive range end"),"calendar_id":stringProp("Optional calendar ID"),"query":stringProp("Optional title or notes text")],required:["start","end"])),
                 Tool(name:"create_event",description:"Create a native Calendar event. Times require ISO 8601 explicit offsets.",inputSchema:schema(["title":stringProp("Event title"),"start":stringProp("Start timestamp"),"end":stringProp("End timestamp"),"all_day":boolProp("All-day flag"),"location":stringProp("Location"),"notes":stringProp("Notes"),"calendar_id":stringProp("Destination calendar ID")],required:["title","start","end"])),
                 Tool(name:"update_event",description:"Update one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID"),"title":stringProp("New title"),"start":stringProp("New start timestamp"),"end":stringProp("New end timestamp"),"all_day":boolProp("All-day flag"),"location":stringProp("Location"),"notes":stringProp("Notes")],required:["id"])),
-                Tool(name:"delete_event",description:"Delete one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID")],required:["id"]))
+                Tool(name:"delete_event",description:"Delete one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID")],required:["id"])),
+                Tool(name:"search_icloud_mail",description:"Read-only search of subjects and senders in the configured iCloud Mail account. Returns message IDs and metadata, not bodies. Searches all mailboxes in that account.",inputSchema:schema(["query":stringProp("Text to find in subject or sender"),"limit":numberProp("Maximum results, 1 to 50; default 20")],required:["query"])),
+                Tool(name:"read_icloud_mail",description:"Read one message from the configured iCloud Mail account by an ID returned from search_icloud_mail. Does not send, move, delete, or intentionally mark messages read.",inputSchema:schema(["id":numberProp("Numeric message ID from search_icloud_mail")],required:["id"]))
             ]
             await server.withMethodHandler(ListTools.self) { _ in .init(tools: tools) }
             await server.withMethodHandler(CallTool.self) { params in
                 do {
-                    let result = try await service.call(params.name, params.arguments ?? [:])
+                    let result: String
+                    if params.name == "search_icloud_mail" || params.name == "read_icloud_mail" {
+                        result = try await mailService.call(params.name, params.arguments ?? [:])
+                    } else {
+                        result = try await service.call(params.name, params.arguments ?? [:])
+                    }
                     return .init(content: [.text(text: result, annotations: nil, _meta: nil)], isError: false)
                 } catch { return .init(content: [.text(text: error.localizedDescription, annotations: nil, _meta: nil)], isError: true) }
             }

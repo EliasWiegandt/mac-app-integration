@@ -10,4 +10,5 @@
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Local Calendar MCP needs full Calendar access to search, create, update, and delete calendar events when you invoke Calendar tools.</string>
   <key>NSRemindersFullAccessUsageDescription</key><string>Local Calendar MCP needs full Reminders access to search, create, update, and delete reminders when you invoke Reminders tools.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Local Calendar MCP needs permission to ask Apple Mail to search and read messages in the configured iCloud account.</string>
 </dict></plist>
