@@ -1,0 +1,54 @@
+# Local Calendar and Reminders MCP
+
+A small MCP server for the Apple Calendar and Reminders data configured on this Mac. It uses Swift, EventKit, and the MCP Swift SDK. Email is not included.
+
+## Start it
+
+Requires macOS 14 or newer and a Swift 6 toolchain (Xcode Command Line Tools).
+
+From this folder, run:
+
+```sh
+make run
+```
+
+Leave the Terminal window open while using the tools. Press Ctrl-C to stop the server. `make run` builds an app bundle and starts the MCP endpoint at `http://127.0.0.1:8765/mcp`. It listens only on this Mac's loopback interface. **No tunnel client is needed for the local ChatGPT desktop app.**
+
+The first Calendar or Reminders tool call may trigger a macOS permission prompt. Grant access to both when prompted. If access was previously denied, enable **Local Calendar MCP** in **System Settings → Privacy & Security → Calendars** or **Reminders**. The generated app bundle carries the permission descriptions; launch the server through `make run` rather than running the bare Swift binary.
+
+## Connect ChatGPT on this Mac
+
+In the ChatGPT desktop app, add an MCP server in **Settings → MCP servers** using **Streamable HTTP** and the URL `http://127.0.0.1:8765/mcp`. Save and restart ChatGPT if prompted. This is a one-time setup. With `make run` running, try “List my reminder lists” or “List my calendars.”
+
+The local connection is already configured on the original development Mac as `local-mac-app-integrations`. On another Mac, add it there separately.
+
+## Tools
+
+| Reminders | Calendar |
+| --- | --- |
+| `list_reminder_lists` | `list_calendars` |
+| `search_reminders` | `search_events` |
+| `create_reminder` | `create_event` |
+| `update_reminder` | `update_event` |
+| `delete_reminder` | `delete_event` |
+
+Timed event inputs use ISO 8601 with an explicit UTC offset, for example `2026-10-03T09:30:00+02:00`. Event searches need both start and end bounds. EventKit IDs can change when synced accounts replace an event. This version rejects edits and deletions of recurring events. The server returns an error if no destination list or calendar can be chosen unambiguously.
+
+## Other devices and future hosting
+
+For the ChatGPT phone app, [ChatGPT Remote](https://learn.chatgpt.com/docs/remote-connections) can use the MCP setup on an awake Mac running the desktop app and this server. A dedicated Mac can run it under a user account with Calendar and Reminders permissions. The current server cannot run as-is on a Cloudflare Worker because it depends on Apple's on-device EventKit framework.
+
+Hosted ChatGPT Work/web access is a separate option using [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). See [remote access setup](docs/remote-access.md). The tunnel client is **not** part of `make run`.
+
+## Privacy and limitations
+
+The server has no bearer authentication. Any process on this Mac can reach its loopback endpoint while it is running; it is not accessible directly from another device or the internet. Do not change the listener to a LAN or public address without adding appropriate authentication. The server does not log reminder or calendar contents.
+
+To reset a denied macOS permission and get a new prompt:
+
+```sh
+tccutil reset Calendar com.localcalendar.mcp
+tccutil reset Reminders com.localcalendar.mcp
+```
+
+Rebuilding the ad-hoc signed app may trigger a new permission prompt. `make clean` removes Swift build output. [PLAN.md](PLAN.md) records the original implementation plan.

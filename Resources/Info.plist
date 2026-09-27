@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>com.localcalendar.mcp</string>
+  <key>CFBundleName</key><string>Local Calendar MCP</string>
+  <key>CFBundleExecutable</key><string>LocalCalendarMCP</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Local Calendar MCP needs full Calendar access to search, create, update, and delete calendar events when you invoke Calendar tools.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>Local Calendar MCP needs full Reminders access to search, create, update, and delete reminders when you invoke Reminders tools.</string>
+</dict></plist>
