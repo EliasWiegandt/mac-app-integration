@@ -75,6 +75,24 @@ final class EventKitService {
             e.calendar = try eventCalendar(a["calendar_id"]?.stringValue)
             try store.save(e, span: .thisEvent, commit: true)
             return try encode([eventJSON(e)])
+        case "invite_event_attendee":
+            try await calendarPermission()
+            let id = try requiredString(a, "id")
+            let email = try requiredString(a, "email").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard email.range(of: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#, options: .regularExpression) != nil else {
+                throw Err.message("Provide one valid guest email address.")
+            }
+            guard let event = store.event(withIdentifier: id) else { throw Err.message("Event ID not found or stale: \(id)") }
+            guard !event.hasRecurrenceRules else { throw Err.message("Inviting attendees to recurring events is unsupported.") }
+            guard !event.isAllDay else { throw Err.message("Inviting attendees to all-day events is unsupported in this version.") }
+            guard event.calendar.allowsContentModifications else { throw Err.message("This event's calendar is read-only.") }
+            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: event.startDate)
+            guard let year = components.year, let month = components.month, let day = components.day,
+                  let hour = components.hour, let minute = components.minute, let second = components.second else {
+                throw Err.message("Could not determine the event's local start time.")
+            }
+            let status = try await CalendarInviteBridge.invite(calendarName: event.calendar.title, title: event.title ?? "", startParts: [year, month, day, hour, minute, second], email: email)
+            return try encode([["event_id": id, "email": email, "calendar": event.calendar.title, "status": status, "delivery": "not_verified"]])
         case "update_event", "delete_event":
             try await calendarPermission()
             let id = try requiredString(a, "id")
@@ -193,7 +211,7 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
         let service = EventKitService()
         let mailService = MailService()
         let app = HTTPApp(host: "127.0.0.1", port: Int(option("--port", fallback: "8765")) ?? 8765, endpoint: "/mcp") { _, transport in
-            let server = Server(name: "local-mac-app-integrations", version: "1.2.0", instructions: "Local Apple Calendar, Reminders, and iCloud Mail. Mail can search, read, and save attachments to a fixed local folder. Dates use ISO 8601 with offsets. Calendar and Reminders writes affect native data.", capabilities: .init(tools: .init()))
+            let server = Server(name: "local-mac-app-integrations", version: "1.3.0", instructions: "Local Apple Calendar, Reminders, and iCloud Mail. Mail can search, read, and save attachments. Calendar can add attendees through AppleScript; doing so may send an invitation. Dates use ISO 8601 with offsets.", capabilities: .init(tools: .init()))
             let tools: [Tool] = [
                 Tool(name:"list_reminder_lists",description:"List available Reminders lists and stable IDs.",inputSchema:schema([:])),
                 Tool(name:"search_reminders",description:"Search reminders. Optional completion and due bounds; due bounds use ISO 8601.",inputSchema:schema(["list_id":stringProp("Reminder list ID"),"query":stringProp("Title or notes contains"),"completed":boolProp("Completion filter"),"due_from":stringProp("Inclusive due lower bound"),"due_to":stringProp("Inclusive due upper bound")])),
@@ -203,6 +221,7 @@ private func numberProp(_ description: String) -> Value { .object(["type": .stri
                 Tool(name:"list_calendars",description:"List available event calendars and stable IDs.",inputSchema:schema([:])),
                 Tool(name:"search_events",description:"Search events in a required bounded time range; use ISO 8601 timestamps with explicit offsets.",inputSchema:schema(["start":stringProp("Inclusive range start"),"end":stringProp("Exclusive range end"),"calendar_id":stringProp("Optional calendar ID"),"query":stringProp("Optional title or notes text")],required:["start","end"])),
                 Tool(name:"create_event",description:"Create a native Calendar event. Times require ISO 8601 explicit offsets.",inputSchema:schema(["title":stringProp("Event title"),"start":stringProp("Start timestamp"),"end":stringProp("End timestamp"),"all_day":boolProp("All-day flag"),"location":stringProp("Location"),"notes":stringProp("Notes"),"calendar_id":stringProp("Destination calendar ID")],required:["title","start","end"])),
+                Tool(name:"invite_event_attendee",description:"Add one guest by email to a timed, nonrecurring, writable Apple Calendar event using Calendar automation. This may send an invitation. Returns whether the attendee was added or already present; delivery is not verified.",inputSchema:schema(["id":stringProp("Event ID returned by search_events or create_event"),"email":stringProp("Guest email address to invite")],required:["id","email"])),
                 Tool(name:"update_event",description:"Update one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID"),"title":stringProp("New title"),"start":stringProp("New start timestamp"),"end":stringProp("New end timestamp"),"all_day":boolProp("All-day flag"),"location":stringProp("Location"),"notes":stringProp("Notes")],required:["id"])),
                 Tool(name:"delete_event",description:"Delete one event by ID. Recurring events are rejected.",inputSchema:schema(["id":stringProp("Stable event ID")],required:["id"])),
                 Tool(name:"search_icloud_mail",description:"Read-only search of subjects and senders in the configured iCloud Mail account. Returns message IDs and metadata, not bodies. Searches all mailboxes in that account.",inputSchema:schema(["query":stringProp("Text to find in subject or sender"),"limit":numberProp("Maximum results, 1 to 50; default 20")],required:["query"])),

@@ -9,6 +9,7 @@ build:
 	cp $(BIN) $(APP)/Contents/MacOS/LocalCalendarMCP
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
 	cp Resources/MailBridge.applescript $(APP)/Contents/Resources/MailBridge.applescript
+	cp Resources/CalendarInviteBridge.applescript $(APP)/Contents/Resources/CalendarInviteBridge.applescript
 	codesign --force --deep --sign - $(APP)
 
 run: build

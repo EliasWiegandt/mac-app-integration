@@ -34,6 +34,8 @@ The local connection is already configured on the original development Mac as `l
 | `update_reminder` | `update_event` |
 | `delete_reminder` | `delete_event` |
 
+Calendar invitations: `invite_event_attendee` takes an event ID and a guest email address. It uses Apple Calendar automation because EventKit cannot add guests. The first use may ask for Automation permission for Calendar. The tool supports timed, nonrecurring events on writable calendars. It checks the calendar, title, and exact start time and refuses ambiguous matches. Existing guests are reported without adding a duplicate. Adding a guest may send an invitation immediately; the tool can confirm the attendee appears in Calendar but cannot verify delivery to the guest.
+
 Mail: `search_icloud_mail`, `read_icloud_mail`, `list_icloud_mail_attachments`, and `download_icloud_mail_attachment`. List attachments for a message ID, then download one by its attachment ID. Downloads are saved to a unique folder under `~/Library/Application Support/LocalMacAppIntegrations/Attachments/`; the tool returns the absolute path. These copies persist until you remove them. Downloading does not send or delete mail. Apple Mail may leave `mime_type` empty even when it provides the file name and size.
 
 Timed event inputs use ISO 8601 with an explicit UTC offset, for example `2026-10-03T09:30:00+02:00`. Event searches need both start and end bounds. EventKit IDs can change when synced accounts replace an event. This version rejects edits and deletions of recurring events. The server returns an error if no destination list or calendar can be chosen unambiguously.
